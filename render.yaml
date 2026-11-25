@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CORS_ORIGINS
-        value: "http://localhost:5173,https://afri-voice-fv1ozwxl0-afri-voice-ai.vercel.app"
+        value: "https://afri-voice-ai.vercel.app,http://localhost:5173,https://afri-voice-fv1ozwxl0-afri-voice-ai.vercel.app,https://afri-voice-acxo2w7xm-afri-voice-ai.vercel.app"
       - key: AI_MODE
         value: gemini
       - key: GOOGLE_GENERATIVE_AI_API_KEY
