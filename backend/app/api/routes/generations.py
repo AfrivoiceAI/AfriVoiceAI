@@ -6,6 +6,7 @@ from app.db.mongo import db
 from app.models.schemas import GenerationIn
 from app.services.ai import text_generate,speech_generate,image_generate,transcribe
 from app.core.config import settings
+from app.core.serialization import serialize_mongo_document
 router=APIRouter(prefix='/generations',tags=['generations'])
 def charge(uid):
     u=db.users.find_one({'_id':ObjectId(uid)}); month=datetime.now(timezone.utc).strftime('%Y-%m')
@@ -29,8 +30,7 @@ async def transcribe_audio(file:UploadFile=File(...),user=Depends(current_user))
 @router.get('')
 def history(user=Depends(current_user)):
     rows=list(db.generations.find({'user_id':user['id']}).sort('created_at',-1).limit(50))
-    for d in rows: d['id']=str(d.pop('_id'))
-    return rows
+    return [serialize_mongo_document(document) for document in rows]
 @router.get('/usage')
 def usage(user=Depends(current_user)):
     d=db.users.find_one({'_id':ObjectId(user['id'])}); m=datetime.now(timezone.utc).strftime('%Y-%m'); return {'used':d.get('usage_count',0) if d.get('usage_month')==m else 0,'limit':settings.monthly_generation_limit,'month':m}
