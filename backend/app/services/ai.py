@@ -1,6 +1,7 @@
 import logging
 import uuid
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from fastapi import HTTPException, UploadFile
@@ -10,6 +11,7 @@ UPLOADS = Path("uploads")
 UPLOADS.mkdir(exist_ok=True)
 logger = logging.getLogger(__name__)
 AI_GATEWAY_CHAT_COMPLETIONS_URL = "https://ai-gateway.vercel.sh/v1/chat/completions"
+GEMINI_GENERATE_CONTENT_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 async def gateway_text_generate(prompt: str):
@@ -67,6 +69,75 @@ async def gateway_text_generate(prompt: str):
     return {"status": "completed", "text": text, "model": settings.ai_gateway_model}
 
 
+async def gemini_text_generate(prompt: str):
+    if not settings.google_generative_ai_api_key or not settings.gemini_model:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Hosted Gemini generation is not configured. Set "
+                "GOOGLE_GENERATIVE_AI_API_KEY and GEMINI_MODEL, then set AI_MODE=gemini."
+            ),
+        )
+
+    url = (
+        f"{GEMINI_GENERATE_CONTENT_URL}/"
+        f"{quote(settings.gemini_model, safe='')}:generateContent"
+    )
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                url,
+                headers={
+                    "x-goog-api-key": settings.google_generative_ai_api_key,
+                },
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                },
+            )
+    except httpx.TimeoutException:
+        logger.exception("Gemini request timed out")
+        raise HTTPException(504, "The hosted model timed out. Please try again.")
+    except httpx.RequestError:
+        logger.exception("Unable to reach Gemini")
+        raise HTTPException(503, "The hosted model service is temporarily unreachable.")
+
+    if response.is_error:
+        status_code = response.status_code
+        logger.warning("Gemini returned HTTP %s", status_code)
+        if status_code in (401, 403):
+            detail = (
+                "Gemini authentication or model access failed. Check the API key, "
+                "model ID, and free-tier eligibility."
+            )
+        elif status_code == 429:
+            detail = "Gemini free-tier quota was reached. Please try again later."
+        elif status_code >= 500:
+            detail = "The Gemini model service is temporarily unavailable."
+        else:
+            detail = "Gemini rejected the request. Check the configured model ID and prompt."
+        raise HTTPException(503 if status_code != 429 else 429, detail)
+
+    try:
+        payload = response.json()
+        parts = payload["candidates"][0]["content"]["parts"]
+        text = "".join(
+            part["text"]
+            for part in parts
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+        )
+    except (ValueError, KeyError, TypeError, IndexError):
+        logger.exception("Gemini returned an unexpected response")
+        raise HTTPException(502, "The hosted model returned an unexpected response.")
+
+    if not text.strip():
+        raise HTTPException(
+            502,
+            "Gemini returned no text. The request may have been blocked by a safety filter.",
+        )
+
+    return {"status": "completed", "text": text, "model": settings.gemini_model}
+
+
 async def text_generate(prompt: str):
     if settings.ai_mode == "demo":
         return {
@@ -79,6 +150,9 @@ async def text_generate(prompt: str):
 
     if settings.ai_mode == "gateway":
         return await gateway_text_generate(prompt)
+
+    if settings.ai_mode == "gemini":
+        return await gemini_text_generate(prompt)
 
     try:
         async with httpx.AsyncClient(timeout=180) as client:

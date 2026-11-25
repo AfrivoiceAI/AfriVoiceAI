@@ -1,6 +1,6 @@
 # AfriVoiceAI product notes
 
-AfriVoiceAI is an early-stage creator workspace. The current implementation includes email/password authentication, a monthly free usage counter, MongoDB generation history, feedback, consent preference fields, and demo/local model adapters. Hosted text generation through AI Gateway is opt-in and requires a server-side key and an explicitly selected current model ID.
+AfriVoiceAI is an early-stage creator workspace. The current implementation includes email/password authentication, a monthly free usage counter, MongoDB generation history, feedback, consent preference fields, and demo/local model adapters. Hosted text supports direct Google Gemini API and optional AI Gateway modes. Gemini free-tier use requires a server-side Google API key, has quotas, and may use submitted content to improve Google products; do not send sensitive customer data through it.
 
 Speech (Kokoro), transcription (Whisper) and image generation (FLUX) are optional adapters, not production-ready hosted capabilities. Language quality—especially Nigerian English, Pidgin, Yorùbá, Igbo and Hausa—must be measured with native speakers before support is claimed.
 

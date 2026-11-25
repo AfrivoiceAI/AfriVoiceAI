@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
     cors_origins: str = "http://localhost:5173"
-    ai_mode: Literal["demo", "local", "gateway"] = "demo"
+    ai_mode: Literal["demo", "local", "gateway", "gemini"] = "demo"
     ai_gateway_api_key: str = ""
     ai_gateway_model: str = ""
+    google_generative_ai_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash-lite"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2:3b"
     tts_provider: str = "demo"

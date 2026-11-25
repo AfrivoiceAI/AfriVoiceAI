@@ -2,7 +2,7 @@
 
 AfriVoiceAI is an early-stage creative workspace for African creators. It combines a React/Vite web app, a FastAPI API, MongoDB Atlas persistence, and replaceable text, speech, image, and transcription adapters.
 
-> **Status:** MVP, not production-certified. Text, speech, image, and transcription default to demo behavior. A hosted text-model adapter is available but remains opt-in until an AI Gateway key and current model ID are configured. The production API and Vercel frontend have been deployed; the Vercel site currently requires team login.
+> **Status:** MVP, not production-certified. Text, speech, image, and transcription default to demo behavior. Hosted text supports direct Google Gemini API and optional Vercel AI Gateway modes; the Render blueprint selects Gemini, which requires a Google AI Studio API key. The production API and Vercel frontend have been deployed; the Vercel site currently requires team login.
 
 ## What is implemented
 
@@ -13,7 +13,7 @@ AfriVoiceAI is an early-stage creative workspace for African creators. It combin
 | Persistence | MongoDB collections for users, generations and feedback; unique email and history indexes |
 | Authentication | Email/password, Argon2 password hashing and JWT bearer tokens; the web client stores the token in browser `localStorage` |
 | Usage limit | Monthly per-user generation counter, default 30 |
-| Text | Demo by default; optional Ollama local adapter; optional Vercel AI Gateway text adapter |
+| Text | Demo by default; optional Ollama local adapter; direct Google Gemini and optional Vercel AI Gateway adapters |
 | Speech | Demo by default; optional Kokoro adapter for English only |
 | Transcription | Demo by default; optional Whisper adapter |
 | Images | Demo by default; optional FLUX.1-schnell adapter for a suitable GPU host |
@@ -29,7 +29,7 @@ React/Vite browser
         ▼
 FastAPI on Render ───── MongoDB Atlas
         │
-        ├── Text: demo / Ollama / optional AI Gateway
+        ├── Text: demo / Ollama / Google Gemini / optional AI Gateway
         ├── Speech: demo / optional Kokoro
         ├── Transcription: demo / optional Whisper
         └── Images: demo / optional FLUX adapter
@@ -69,10 +69,21 @@ The default `.env.example` is intended for Docker Compose. Change `JWT_SECRET` b
 | Mode | Configuration | Local model storage |
 | --- | --- | --- |
 | Demo | `AI_MODE=demo` | None |
-| Hosted text | `AI_MODE=gateway`, `AI_GATEWAY_API_KEY`, `AI_GATEWAY_MODEL` | None; provider usage may cost money |
+| Google Gemini free tier | `AI_MODE=gemini`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GEMINI_MODEL=gemini-3.5-flash-lite` | None; free-tier quotas apply |
+| Vercel AI Gateway | `AI_MODE=gateway`, `AI_GATEWAY_API_KEY`, `AI_GATEWAY_MODEL` | None; account verification or paid usage may apply |
 | Local text | `AI_MODE=local`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Ollama weights are downloaded locally |
 
-For hosted text, create/manage the AI Gateway key through Vercel and add it as a secret in the backend environment. Select `AI_GATEWAY_MODEL` from the live catalog at <https://ai-gateway.vercel.sh/v1/models>; model availability and pricing change. Do not paste the key into chat, frontend variables, source files, or Git.
+For a no-card hosted option, create a Gemini API key in [Google AI Studio](https://aistudio.google.com/apikey), keep it server-side as `GOOGLE_GENERATIVE_AI_API_KEY`, and set `AI_MODE=gemini`. The current `gemini-3.5-flash-lite` free tier has usage limits; Google states free-tier content may be used to improve its products. Do not send sensitive or customer-confidential content through that tier. The provider may require project verification depending on region or account.
+
+The optional Vercel AI Gateway adapter requires a Gateway key and an accessible model. Do not paste provider keys into chat, frontend variables, source files, or Git.
+
+The direct-provider AI SDK example can be run locally after adding a Google API key to `frontend/.env.local`:
+
+```powershell
+Push-Location frontend
+npm run gemini:example
+Pop-Location
+```
 
 For local Ollama testing, use the optional Compose profile:
 
@@ -107,9 +118,11 @@ The backend reads environment variables using `backend/app/core/config.py`. `.en
 | `JWT_ALGORITHM` | JWT signing algorithm | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime | `1440` |
 | `CORS_ORIGINS` | Comma-separated exact browser origins | `http://localhost:5173` locally |
-| `AI_MODE` | Text mode: `demo`, `local` or `gateway` | `demo` |
-| `AI_GATEWAY_API_KEY` | Server-side AI Gateway credential | Required only for hosted text mode |
-| `AI_GATEWAY_MODEL` | Exact current Gateway model ID | Required only for hosted text mode |
+| `AI_MODE` | Text mode: `demo`, `local`, `gateway` or `gemini` | `demo` locally; Render blueprint uses `gemini` |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Server-side Google AI Studio credential | Required for Gemini mode |
+| `GEMINI_MODEL` | Gemini API model ID | `gemini-3.5-flash-lite` |
+| `AI_GATEWAY_API_KEY` | Server-side AI Gateway credential | Required only for Gateway mode |
+| `AI_GATEWAY_MODEL` | Exact current Gateway model ID | Required only for Gateway mode |
 | `OLLAMA_BASE_URL` | Ollama API URL | `http://ollama:11434` in Compose |
 | `OLLAMA_MODEL` | Local Ollama model tag | `llama3.2:3b` |
 | `TTS_PROVIDER` | Speech adapter | `demo` or optional `kokoro` |
@@ -160,7 +173,7 @@ Build command: pip install -r requirements.txt
 Start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-Configure `MONGODB_URL`, `JWT_SECRET` and `CORS_ORIGINS` in Render's environment settings. Add `AI_MODE`, `AI_GATEWAY_API_KEY` and `AI_GATEWAY_MODEL` only when intentionally enabling hosted inference. Keep provider credentials on the server.
+Configure `MONGODB_URL`, `JWT_SECRET`, `CORS_ORIGINS` and `GOOGLE_GENERATIVE_AI_API_KEY` in Render's environment settings. The Render blueprint sets `AI_MODE=gemini` and `GEMINI_MODEL=gemini-3.5-flash-lite`. Keep provider credentials on the server.
 
 ### Vercel frontend
 
@@ -189,6 +202,7 @@ See [docs/PRD.md](docs/PRD.md) for product goals, user requirements, acceptance 
 ## Model and dependency references
 
 - [Vercel AI Gateway models](https://ai-gateway.vercel.sh/v1/models) and [Gateway API docs](https://vercel.com/docs/ai-gateway)
+- [Google AI Studio API keys](https://aistudio.google.com/apikey), [Gemini models](https://aistudio.google.com/docs/models), and [Gemini pricing and data-use terms](https://aistudio.google.com/docs/pricing)
 - [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md)
 - [Kokoro-82M model card](https://huggingface.co/hexgrad/Kokoro-82M)
 - [Whisper repository](https://github.com/openai/whisper)

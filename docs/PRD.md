@@ -166,10 +166,12 @@ Confident, welcoming and practical. Avoid pan-African clichés, unsupported clai
 ### Provider architecture
 
 - The API owns model credentials and calls providers server-side.
-- Text supports explicit `demo`, `local` and `gateway` modes.
+- Text supports explicit `demo`, `local`, `gateway` and `gemini` modes.
 - Demo remains the safe default until a real provider is configured.
 - Gateway mode uses OpenAI-compatible Chat Completions at AI Gateway and an exact model ID supplied through `AI_GATEWAY_MODEL`.
-- Model IDs must be selected from the current AI Gateway catalog; do not hardcode a time-sensitive model as a permanent product default.
+- Gemini mode calls the Google Generative Language API server-side with `GOOGLE_GENERATIVE_AI_API_KEY` and `GEMINI_MODEL`; the configured MVP model is `gemini-3.5-flash-lite`.
+- Google's free tier has quotas and states that submitted content may be used to improve its products; do not send sensitive customer data through that tier.
+- Select Gateway IDs from the live AI Gateway catalog and Gemini IDs from Google's current model catalog; review availability and free-tier eligibility before changing the configured model.
 - The key, model ID, cost and retention policy must be set/reviewed by the service owner before enabling live inference.
 - Never silently fall back from a configured live provider to demo output.
 
@@ -291,6 +293,7 @@ Do not treat high generation volume as a quality or inclusion metric by itself.
 - [ ] Missing API config, CORS/network errors and API errors have distinct, actionable messages.
 - [ ] Demo behavior is clearly identified; no real inference is implied when demo mode is enabled.
 - [ ] Hosted text mode requires server-side credentials and a selected current model ID.
+- [ ] Free-tier provider data use and quotas are disclosed before production use.
 - [ ] Provider failures never return success-shaped demo output.
 - [ ] The user can see history and monthly usage for their own account.
 - [ ] Model/language claims are supported by an evaluation record.

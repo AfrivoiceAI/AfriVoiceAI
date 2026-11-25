@@ -18,5 +18,11 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         sync: false
+      - key: AI_MODE
+        value: gemini
+      - key: GOOGLE_GENERATIVE_AI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash-lite
       - key: MONTHLY_GENERATION_LIMIT
         value: "30"
