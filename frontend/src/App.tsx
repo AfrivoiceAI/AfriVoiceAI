@@ -309,7 +309,7 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   const [language, setLanguage] = useState('en-NG');
   const [result, setResult] = useState<GenerationOutput | null>(null);
   const [history, setHistory] = useState<Generation[]>([]);
-  const [usage, setUsage] = useState<Usage>({ used: 0, limit: 20 });
+  const [usage, setUsage] = useState<Usage>({ used: 0, limit: 30 });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -450,6 +450,16 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
             <span className="avatar avatar-small">{initials(user.display_name)}</span>
             <span>{firstName}</span>
           </div>
+          <button
+            aria-label="Sign out"
+            className="icon-button mobile-signout"
+            onClick={onSignOut}
+            title="Sign out"
+            type="button"
+          >
+            <LogOut aria-hidden="true" size={16} />
+            <span>Sign out</span>
+          </button>
         </header>
 
         <main className="studio-content" id="studio">

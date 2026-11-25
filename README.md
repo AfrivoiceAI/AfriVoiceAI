@@ -12,7 +12,7 @@ AfriVoiceAI is an early-stage creative workspace for African creators. It combin
 | API | FastAPI; health check, authentication, generations, usage, feedback and consent endpoints |
 | Persistence | MongoDB collections for users, generations and feedback; unique email and history indexes |
 | Authentication | Email/password, Argon2 password hashing and JWT bearer tokens; the web client stores the token in browser `localStorage` |
-| Usage limit | Monthly per-user generation counter, default 20 |
+| Usage limit | Monthly per-user generation counter, default 30 |
 | Text | Demo by default; optional Ollama local adapter; optional Vercel AI Gateway text adapter |
 | Speech | Demo by default; optional Kokoro adapter for English only |
 | Transcription | Demo by default; optional Whisper adapter |
@@ -116,7 +116,7 @@ The backend reads environment variables using `backend/app/core/config.py`. `.en
 | `ASR_PROVIDER` | Transcription adapter | `demo` or optional `whisper` |
 | `WHISPER_MODEL` | Whisper model size/tag | `base` |
 | `IMAGE_PROVIDER` | Image adapter | `demo` or optional `flux` |
-| `MONTHLY_GENERATION_LIMIT` | Monthly generation allowance | `20` |
+| `MONTHLY_GENERATION_LIMIT` | Monthly generation allowance | `30` |
 | `MAX_UPLOAD_MB` | Maximum audio upload size | `15` |
 | `VITE_API_URL` | Frontend API base URL, build-time | `http://localhost:8000/api/v1` for local development |
 

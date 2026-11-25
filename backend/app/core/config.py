@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     asr_provider: str = "demo"
     whisper_model: str = "base"
     image_provider: str = "demo"
-    monthly_generation_limit: int = 20
+    monthly_generation_limit: int = 30
     max_upload_mb: int = 15
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

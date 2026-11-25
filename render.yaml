@@ -18,3 +18,5 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         sync: false
+      - key: MONTHLY_GENERATION_LIMIT
+        value: "30"
