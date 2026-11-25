@@ -1,32 +1,197 @@
-# AfriVoice AI MVP
-React + TypeScript + Vite frontend, FastAPI backend, MongoDB database. This is a runnable starter, not a production-certified service.
+# AfriVoiceAI
 
-## Run locally
-1. Install Docker Desktop.
-2. `cp .env.example .env` (Windows: copy `.env.example` to `.env`). Replace `JWT_SECRET` with a long random value.
-3. `docker compose up --build`
-4. Open frontend http://localhost:5173 and API docs http://localhost:8000/docs.
-5. Register a user. Demo mode is enabled by default.
+AfriVoiceAI is an early-stage creative workspace for African creators. It combines a React/Vite web app, a FastAPI API, MongoDB Atlas persistence, and replaceable text, speech, image, and transcription adapters.
 
-## Enable local open models
-Text: install Ollama from https://ollama.com, then run `ollama pull llama3.2:3b`. For Docker, start its profile with `docker compose --profile local-ai up --build`, then `docker compose exec ollama ollama pull llama3.2:3b`. Set `AI_MODE=local` and `OLLAMA_BASE_URL=http://ollama:11434` in `.env`, then restart API.
+> **Status:** MVP, not production-certified. Text, speech, image, and transcription default to demo behavior. A hosted text-model adapter is available but remains opt-in until an AI Gateway key and current model ID are configured. The production API and Vercel frontend have been deployed; the Vercel site currently requires team login.
 
-Speech: `cd backend && pip install -r requirements-audio.txt`; set `TTS_PROVIDER=kokoro` for Kokoro-82M English TTS or `ASR_PROVIDER=whisper` for Whisper transcription. These are optional and may require OS/runtime dependencies. Kokoro's published card lists English voices; it is NOT a validated Nigerian English/Pidgin/Yoruba/Igbo/Hausa model. Whisper performance for African languages must be measured, not assumed.
+## What is implemented
 
-Image: optional FLUX.1-schnell adapter in `requirements-image.txt`. It is a 12B model and generally needs a suitable GPU; not suitable for a small CPU-only Render instance. Default image mode is demo.
+| Area | Current implementation |
+| --- | --- |
+| Web client | React, TypeScript, Vite; registration/sign-in, creator workspace, generation form, recent history and monthly usage display |
+| API | FastAPI; health check, authentication, generations, usage, feedback and consent endpoints |
+| Persistence | MongoDB collections for users, generations and feedback; unique email and history indexes |
+| Authentication | Email/password, Argon2 password hashing and JWT bearer tokens; the web client stores the token in browser `localStorage` |
+| Usage limit | Monthly per-user generation counter, default 20 |
+| Text | Demo by default; optional Ollama local adapter; optional Vercel AI Gateway text adapter |
+| Speech | Demo by default; optional Kokoro adapter for English only |
+| Transcription | Demo by default; optional Whisper adapter |
+| Images | Demo by default; optional FLUX.1-schnell adapter for a suitable GPU host |
+| Uploads | Local `uploads` directory mounted at `/media`; not durable production object storage |
 
-## Deploy
-- MongoDB Atlas: create a database/user and allow the backend network; set `MONGODB_URL` and `MONGODB_DATABASE`.
-- Render: deploy `render.yaml` or create Python web service with root `backend`, build `pip install -r requirements.txt`, start `uvicorn app.main:app --host 0.0.0.0 --port $PORT`. Set secrets/env vars.
-- Vercel: root `frontend`, build `npm run build`, output `dist`; set `VITE_API_URL=https://YOUR-API/api/v1`.
-- Set backend `CORS_ORIGINS` to exact frontend origin. Never commit `.env` or secrets.
+Language names in the UI express product intent, not validated model capability. Nigerian English, Pidgin, Yorùbá, Igbo and Hausa require native-speaker evaluation before they can be advertised as supported.
 
-## Model/licence references
-- Ollama API: https://github.com/ollama/ollama/blob/main/docs/api.md
-- Kokoro-82M model card (Apache-2.0): https://huggingface.co/hexgrad/Kokoro-82M
-- Whisper repository (MIT): https://github.com/openai/whisper
-- FLUX.1-schnell model card (Apache-2.0): https://huggingface.co/black-forest-labs/FLUX.1-schnell
-Review model weights, code, voice assets, datasets and dependency licenses separately before commercial use. Apache licensing does not imply a model supports Nigerian languages.
+## Architecture
 
-## MVP scope and gaps
-Includes email/password auth, MongoDB users/history/feedback, monthly free quota, text generation, speech/image adapters, transcription upload, and separated consent flags. Does not yet include video, payments, email verification, password reset, admin/moderation, production object storage, background queue, data curation/training pipeline, account deletion or consent withdrawal workflow. Do not collect voice contributions until consent, retention, withdrawal, access control and deletion are implemented. Keep media out of MongoDB for production; use private object storage and signed URLs. Add rate limiting, tests, monitoring and security review before public launch.
+```text
+React/Vite browser
+        │ HTTPS (VITE_API_URL, bearer token)
+        ▼
+FastAPI on Render ───── MongoDB Atlas
+        │
+        ├── Text: demo / Ollama / optional AI Gateway
+        ├── Speech: demo / optional Kokoro
+        ├── Transcription: demo / optional Whisper
+        └── Images: demo / optional FLUX adapter
+```
+
+The browser never receives an AI provider key. The API owns model credentials and calls providers server-side.
+
+## Local development
+
+### Prerequisites
+
+- Docker Desktop with Docker Compose, or compatible Docker Engine and Compose.
+- A modern browser.
+- No local model installation is required for the default demo.
+
+### Start the MVP
+
+From the repository root:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+Then open:
+
+- Frontend: <http://localhost:5173>
+- API health: <http://localhost:8000/health>
+- Interactive API docs: <http://localhost:8000/docs>
+
+The default `.env.example` is intended for Docker Compose. Change `JWT_SECRET` before using real accounts. Keep `.env` private; it is ignored by Git.
+
+### Model modes and local storage
+
+`docker compose up` starts demo behavior; it does not download model weights. Keep this mode if local disk, memory, or GPU is limited.
+
+| Mode | Configuration | Local model storage |
+| --- | --- | --- |
+| Demo | `AI_MODE=demo` | None |
+| Hosted text | `AI_MODE=gateway`, `AI_GATEWAY_API_KEY`, `AI_GATEWAY_MODEL` | None; provider usage may cost money |
+| Local text | `AI_MODE=local`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | Ollama weights are downloaded locally |
+
+For hosted text, create/manage the AI Gateway key through Vercel and add it as a secret in the backend environment. Select `AI_GATEWAY_MODEL` from the live catalog at <https://ai-gateway.vercel.sh/v1/models>; model availability and pricing change. Do not paste the key into chat, frontend variables, source files, or Git.
+
+For local Ollama testing, use the optional Compose profile:
+
+```powershell
+docker compose --profile local-ai up --build
+docker compose exec ollama ollama pull llama3.2:3b
+```
+
+Set `AI_MODE=local` in `.env` and restart the API to use the downloaded model. **The model pull uses local disk space**; check the current model size and available storage before downloading. Ollama data persists in the `ollama_data` Docker volume.
+
+### Optional speech, image and transcription adapters
+
+These are not part of the default backend requirements and may require large downloads, native system packages, or a suitable GPU:
+
+- Speech: `backend/requirements-audio.txt`; set `TTS_PROVIDER=kokoro`. The current adapter only accepts `en` and `en-NG`.
+- Transcription: `backend/requirements-audio.txt`; set `ASR_PROVIDER=whisper` and choose `WHISPER_MODEL`.
+- Images: `backend/requirements-image.txt`; set `IMAGE_PROVIDER=flux`. The current FLUX adapter expects CUDA and is not suitable for the deployed free CPU service.
+
+Ask before installing optional dependencies or downloading weights on a resource-limited computer. No African-language speech or transcription quality is claimed without evaluation.
+
+## Configuration
+
+The backend reads environment variables using `backend/app/core/config.py`. `.env.example` documents the local defaults.
+
+| Variable | Purpose | Default / notes |
+| --- | --- | --- |
+| `ENVIRONMENT` | Deployment environment label | `development` |
+| `API_PREFIX` | Versioned API prefix | `/api/v1` |
+| `MONGODB_URL` | Mongo connection string | Compose uses `mongodb://mongo:27017`; keep production value secret |
+| `MONGODB_DATABASE` | Database name | `afrivoice` |
+| `JWT_SECRET` | Signs access tokens | Replace the development placeholder; never expose or commit |
+| `JWT_ALGORITHM` | JWT signing algorithm | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime | `1440` |
+| `CORS_ORIGINS` | Comma-separated exact browser origins | `http://localhost:5173` locally |
+| `AI_MODE` | Text mode: `demo`, `local` or `gateway` | `demo` |
+| `AI_GATEWAY_API_KEY` | Server-side AI Gateway credential | Required only for hosted text mode |
+| `AI_GATEWAY_MODEL` | Exact current Gateway model ID | Required only for hosted text mode |
+| `OLLAMA_BASE_URL` | Ollama API URL | `http://ollama:11434` in Compose |
+| `OLLAMA_MODEL` | Local Ollama model tag | `llama3.2:3b` |
+| `TTS_PROVIDER` | Speech adapter | `demo` or optional `kokoro` |
+| `ASR_PROVIDER` | Transcription adapter | `demo` or optional `whisper` |
+| `WHISPER_MODEL` | Whisper model size/tag | `base` |
+| `IMAGE_PROVIDER` | Image adapter | `demo` or optional `flux` |
+| `MONTHLY_GENERATION_LIMIT` | Monthly generation allowance | `20` |
+| `MAX_UPLOAD_MB` | Maximum audio upload size | `15` |
+| `VITE_API_URL` | Frontend API base URL, build-time | `http://localhost:8000/api/v1` for local development |
+
+## API endpoints
+
+Except for health and authentication, endpoints require `Authorization: Bearer <access_token>`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | API and MongoDB connectivity |
+| `GET` | `/` | API name and docs link |
+| `POST` | `/api/v1/auth/register` | Create account and return a JWT |
+| `POST` | `/api/v1/auth/login` | Authenticate and return a JWT |
+| `POST` | `/api/v1/generations` | Generate `text`, `speech` or `image`; persist the result |
+| `GET` | `/api/v1/generations` | Return the user's latest 50 generations |
+| `GET` | `/api/v1/generations/usage` | Return monthly usage and limit |
+| `POST` | `/api/v1/generations/transcribe` | Upload an audio file for transcription |
+| `POST` | `/api/v1/feedback` | Submit a rating and optional comment |
+| `PUT` | `/api/v1/consent` | Update consent preference fields |
+
+## Current deployment
+
+- **API:** Render web service `afrivoice-api`, rooted at `backend`, pinned to Python `3.11.14`; current health check reports MongoDB connected.
+- **Frontend:** Vercel project `afri-voice-ai`, rooted at `frontend`, Vite build; `VITE_API_URL` points to the Render API.
+- **Production frontend origin:** `https://afri-voice-ai.vercel.app`
+- **CORS:** Render `CORS_ORIGINS` must include that exact origin and any deliberate local/preview origins.
+- **Access:** Vercel Deployment Protection is enabled; visitors must be authorized team members until the owner deliberately changes it.
+- **Render free instance:** May spin down during inactivity, causing cold-start delays.
+
+For MongoDB Atlas, allow only the backend's current Render outbound ranges and any developer workstation IPs that need access. Render ranges are region-specific and may change; verify them in the Render service's **Connect → Outbound** panel. Do not leave `0.0.0.0/0` enabled after temporary testing.
+
+## Deploy and operate
+
+### Render API
+
+The repository includes `render.yaml` and `.python-version`. The service uses:
+
+```text
+Root directory: backend
+Build command: pip install -r requirements.txt
+Start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Configure `MONGODB_URL`, `JWT_SECRET` and `CORS_ORIGINS` in Render's environment settings. Add `AI_MODE`, `AI_GATEWAY_API_KEY` and `AI_GATEWAY_MODEL` only when intentionally enabling hosted inference. Keep provider credentials on the server.
+
+### Vercel frontend
+
+Configure the project root as `frontend`, use the Vite preset, and set:
+
+```text
+VITE_API_URL=https://afrivoice-api.onrender.com/api/v1
+```
+
+`VITE_API_URL` is embedded during the Vite build. Redeploy after changing it. The API client now reports API/CORS configuration guidance instead of exposing the browser's generic `Failed to fetch` message.
+
+## Security, privacy and limitations
+
+- Never commit `.env`, database connection strings, JWT secrets, or model-provider keys.
+- Do not use wildcard CORS for a credentialed API; allow exact origins.
+- The current consent schema stores separate platform-use, evaluation and model-training booleans. A complete consent UI, withdrawal flow, retention policy and account deletion are not yet implemented.
+- Generation quota is an MVP counter, not a billing system or abuse-prevention rate limiter.
+- The browser stores JWTs in `localStorage`; review the authentication design before a public launch.
+- Media currently uses local disk and may be lost on redeploy/restart. Use private object storage and signed access for production.
+- Admin tools, moderation, payment flows, email verification, password reset, background jobs, observability and comprehensive tests are not implemented.
+- Do not accept community voice contributions until explicit consent, retention, withdrawal, access control and deletion are implemented.
+- Model and dataset licensing, provider data retention, and supported-language claims must be reviewed before commercial use.
+
+See [docs/PRD.md](docs/PRD.md) for product goals, user requirements, acceptance criteria, privacy requirements and the roadmap. [docs/PRODUCT_NOTES.md](docs/PRODUCT_NOTES.md) summarizes current boundaries.
+
+## Model and dependency references
+
+- [Vercel AI Gateway models](https://ai-gateway.vercel.sh/v1/models) and [Gateway API docs](https://vercel.com/docs/ai-gateway)
+- [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md)
+- [Kokoro-82M model card](https://huggingface.co/hexgrad/Kokoro-82M)
+- [Whisper repository](https://github.com/openai/whisper)
+- [FLUX.1-schnell model card](https://huggingface.co/black-forest-labs/FLUX.1-schnell)
+
+Review model weights, code, voice assets, datasets and dependency licenses separately. A model license does not demonstrate language quality, dataset consent, or commercial suitability.
