@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
+  Clock3,
   History,
   Image,
   LayoutDashboard,
@@ -26,7 +27,6 @@ type GenerationOutput = {
   text?: string;
   message?: string;
   media_url?: string;
-  model?: string;
 };
 
 type Generation = {
@@ -69,6 +69,89 @@ const promptPlaceholders: Record<CreationKind, string> = {
   speech: 'Write or paste the words you want to hear spoken…',
   image: 'A lively market at golden hour, with rich green and warm gold details…',
 };
+
+function renderInlineText(text: string): ReactNode[] {
+  const parts = text.split(/(\*\*.+?\*\*|__.+?__|`[^`]+`|\*[^*]+?\*|_[^_]+?_)/g);
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+
+    if (part.startsWith('__') && part.endsWith('__')) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={index}>{part.slice(1, -1)}</code>;
+    }
+
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={index}>{part.slice(1, -1)}</em>;
+    }
+
+    if (part.startsWith('_') && part.endsWith('_')) {
+      return <em key={index}>{part.slice(1, -1)}</em>;
+    }
+
+    return <Fragment key={index}>{part}</Fragment>;
+  });
+}
+
+function FormattedText({ text }: { text: string }) {
+  const blocks = text.trim().split(/\n\s*\n/).filter(Boolean);
+
+  return (
+    <div className="result-text formatted-text">
+      {blocks.map((block, index) => {
+        const lines = block.split('\n').map((line) => line.trim());
+        const heading = lines.length === 1 ? /^(#{1,6})\s+(.+)$/.exec(lines[0]) : null;
+
+        if (heading) {
+          return (
+            <h3 key={index}>
+              {renderInlineText(heading[2])}
+            </h3>
+          );
+        }
+
+        if (lines.every((line) => /^>\s?/.test(line))) {
+          return (
+            <blockquote key={index}>
+              {renderInlineText(lines.map((line) => line.replace(/^>\s?/, '')).join(' '))}
+            </blockquote>
+          );
+        }
+
+        const listItemPattern = /^\s*(?:[-*+]\s+|\d+[.)]\s+)/;
+        if (lines.every((line) => listItemPattern.test(line))) {
+          const ordered = /^\s*\d+[.)]\s+/.test(lines[0]);
+          const items = lines.map((line) => line.replace(listItemPattern, ''));
+
+          return ordered ? (
+            <ol key={index}>
+              {items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderInlineText(item)}</li>
+              ))}
+            </ol>
+          ) : (
+            <ul key={index}>
+              {items.map((item, itemIndex) => (
+                <li key={itemIndex}>{renderInlineText(item)}</li>
+              ))}
+            </ul>
+          );
+        }
+
+        if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(block.trim())) {
+          return <hr key={index} />;
+        }
+
+        return <p key={index}>{renderInlineText(lines.join(' '))}</p>;
+      })}
+    </div>
+  );
+}
 
 function readStoredUser(): User | null {
   try {
@@ -348,6 +431,15 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
     setResult(null);
 
     try {
+      if (kind !== 'text') {
+        const feature = kind === 'speech' ? 'Voice' : 'Image';
+        setResult({
+          status: 'coming_soon',
+          message: `${feature} generation is still in progress. Please check back later.`,
+        });
+        return;
+      }
+
       const response = await api<{ output: GenerationOutput }>('/generations', {
         method: 'POST',
         body: JSON.stringify({ kind, prompt, language }),
@@ -366,6 +458,7 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
     usage.limit > 0 ? Math.min((usage.used / usage.limit) * 100, 100) : 0;
   const resultImage =
     result?.media_url && /\.(png|jpe?g|webp)$/i.test(result.media_url);
+  const resultComingSoon = result?.status === 'coming_soon';
 
   function chooseKind(nextKind: CreationKind) {
     setKind(nextKind);
@@ -572,17 +665,25 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
               {result && (
                 <section className="result-panel" aria-live="polite">
                   <div className="result-heading">
-                    <span className="result-icon">
-                      <CheckCircle2 aria-hidden="true" size={17} />
+                    <span className={`result-icon${resultComingSoon ? ' result-icon-pending' : ''}`}>
+                      {resultComingSoon ? (
+                        <Clock3 aria-hidden="true" size={17} />
+                      ) : (
+                        <CheckCircle2 aria-hidden="true" size={17} />
+                      )}
                     </span>
                     <div>
-                      <strong>Your creation is ready</strong>
+                      <strong>{resultComingSoon ? 'Coming soon' : 'Your creation is ready'}</strong>
                       <small>
-                        {result.status === 'demo' ? 'Demo output' : result.model || 'AI-generated draft'}
+                        {resultComingSoon
+                          ? 'Feature in progress'
+                          : result.status === 'demo'
+                            ? 'Sample output'
+                            : 'AI-generated draft'}
                       </small>
                     </div>
                   </div>
-                  {result.text && <p className="result-text">{result.text}</p>}
+                  {result.text && <FormattedText text={result.text} />}
                   {result.message && <p className="result-text">{result.message}</p>}
                   {result.media_url &&
                     (resultImage ? (

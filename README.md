@@ -14,9 +14,9 @@ AfriVoiceAI is an early-stage creative workspace for African creators. It combin
 | Authentication | Email/password, Argon2 password hashing and JWT bearer tokens; the web client stores the token in browser `localStorage` |
 | Usage limit | Monthly per-user generation counter, default 30 |
 | Text | Demo by default; optional Ollama local adapter; direct Google Gemini and optional Vercel AI Gateway adapters |
-| Speech | Demo by default; optional Kokoro adapter for English only |
+| Speech | Frontend reports that voice generation is in progress; optional Kokoro adapter is not surfaced in the UI yet |
 | Transcription | Demo by default; optional Whisper adapter |
-| Images | Demo by default; optional FLUX.1-schnell adapter for a suitable GPU host |
+| Images | Frontend reports that image generation is in progress; optional FLUX.1-schnell adapter is not surfaced in the UI yet |
 | Uploads | Local `uploads` directory mounted at `/media`; not durable production object storage |
 
 Language names in the UI express product intent, not validated model capability. Nigerian English, Pidgin, Yorùbá, Igbo and Hausa require native-speaker evaluation before they can be advertised as supported.
