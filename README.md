@@ -153,10 +153,10 @@ Except for health and authentication, endpoints require `Authorization: Bearer <
 ## Current deployment
 
 - **API:** Render web service `afrivoice-api`, rooted at `backend`, pinned to Python `3.11.14`; current health check reports MongoDB connected.
-- **Frontend:** Vercel project `afri-voice-ai`, rooted at `frontend`, Vite build; `VITE_API_URL` points to the Render API.
-- **Production frontend origin:** `https://afri-voice-ai.vercel.app`
-- **CORS:** Render `CORS_ORIGINS` must include that exact origin and any deliberate local/preview origins.
-- **Access:** Vercel Deployment Protection is enabled; visitors must be authorized team members until the owner deliberately changes it.
+- **Frontend:** Render site `afrivoice-ai-9mzt.onrender.com`, rooted at `frontend`, Vite build; `VITE_API_URL` points to the Render API.
+- **Production frontend origin:** `https://afrivoice-ai-9mzt.onrender.com`
+- **CORS:** Render `CORS_ORIGINS` must include the exact frontend origin (`https://afrivoice-ai-9mzt.onrender.com`) and any deliberate local/preview origins. The blueprint also retains the prior Vercel origins.
+- **Prior Vercel site:** Deployment Protection is enabled; visitors must be authorized team members.
 - **Render free instance:** May spin down during inactivity, causing cold-start delays.
 
 For MongoDB Atlas, allow only the backend's current Render outbound ranges and any developer workstation IPs that need access. Render ranges are region-specific and may change; verify them in the Render service's **Connect → Outbound** panel. Do not leave `0.0.0.0/0` enabled after temporary testing.
@@ -175,15 +175,15 @@ Start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 
 Configure `MONGODB_URL`, `JWT_SECRET`, `CORS_ORIGINS` and `GOOGLE_GENERATIVE_AI_API_KEY` in Render's environment settings. The Render blueprint sets `AI_MODE=gemini` and `GEMINI_MODEL=gemini-3.5-flash-lite`. Keep provider credentials on the server.
 
-### Vercel frontend
+### Frontend
 
-Configure the project root as `frontend`, use the Vite preset, and set:
+Configure the frontend service with project root `frontend`, a Vite build, and set:
 
 ```text
 VITE_API_URL=https://afrivoice-api.onrender.com/api/v1
 ```
 
-`VITE_API_URL` is embedded during the Vite build. Redeploy after changing it. The API client now reports API/CORS configuration guidance instead of exposing the browser's generic `Failed to fetch` message.
+`VITE_API_URL` is embedded during the Vite build. Redeploy the frontend after changing it. In the Render API service's environment settings, make sure `CORS_ORIGINS` includes the frontend's exact origin (no trailing slash), then redeploy the API. The Render blueprint includes the current frontend origin; existing services may need their environment value updated in the dashboard.
 
 ## Security, privacy and limitations
 
