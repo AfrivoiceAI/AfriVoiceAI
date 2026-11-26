@@ -20,7 +20,9 @@ async def create(data:GenerationIn,user=Depends(current_user)):
     elif data.kind=='speech': out=await speech_generate(data.prompt,data.language)
     else: out=await image_generate(data.prompt)
     doc={'user_id':user['id'],'kind':data.kind,'prompt':data.prompt,'language':data.language,'output':out,'created_at':datetime.now(timezone.utc)}
-    res=db.generations.insert_one(doc); return {'id':str(res.inserted_id),**doc,'usage_count':used}
+    res=db.generations.insert_one(doc)
+    serialized=serialize_mongo_document({**doc,'_id':res.inserted_id})
+    return {**serialized,'usage_count':used}
 @router.post('/transcribe')
 async def transcribe_audio(file:UploadFile=File(...),user=Depends(current_user)):
     if not (file.content_type or '').startswith('audio/'): raise HTTPException(415,'Upload an audio file')
