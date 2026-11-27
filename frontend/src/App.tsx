@@ -17,10 +17,11 @@ type User = {
   id: string;
   email: string;
   display_name: string;
+  has_recovery_question: boolean;
 };
 
 type CreationKind = 'text' | 'speech' | 'image';
-type AuthMode = 'register' | 'login' | 'forgot' | 'reset';
+type AuthMode = 'register' | 'login' | 'forgot' | 'question' | 'reset';
 
 type GenerationOutput = {
   status?: string;
@@ -173,6 +174,8 @@ function readStoredUser(): User | null {
         id: value.id,
         email: value.email,
         display_name: value.display_name,
+        has_recovery_question:
+          'has_recovery_question' in value && value.has_recovery_question === true,
       };
     }
   } catch {
@@ -240,6 +243,9 @@ function AuthScreen({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [recoveryQuestion, setRecoveryQuestion] = useState('');
+  const [recoveryAnswer, setRecoveryAnswer] = useState('');
+  const [recoveryPrompt, setRecoveryPrompt] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
@@ -266,6 +272,23 @@ function AuthScreen({
         return;
       }
 
+      if (mode === 'question') {
+        if (password !== confirmPassword) {
+          setError('Passwords do not match.');
+          return;
+        }
+        await api('/auth/reset-password-question', {
+          method: 'POST',
+          body: JSON.stringify({ email, answer: recoveryAnswer, password }),
+        });
+        setMode('login');
+        setPassword('');
+        setConfirmPassword('');
+        setRecoveryAnswer('');
+        setSuccess('Your password has been reset. Sign in with your new password.');
+        return;
+      }
+
       if (mode === 'reset') {
         if (password !== confirmPassword) {
           setError('Passwords do not match.');
@@ -283,7 +306,13 @@ function AuthScreen({
       }
 
       const body = mode === 'register'
-        ? { email, password, display_name: name }
+        ? {
+            email,
+            password,
+            display_name: name,
+            recovery_question: recoveryQuestion,
+            recovery_answer: recoveryAnswer,
+          }
         : { email, password };
       const response = await api<AuthResponse>(`/auth/${mode}`, {
         method: 'POST',
@@ -303,8 +332,29 @@ function AuthScreen({
   const isRegistering = mode === 'register';
   const isLoggingIn = mode === 'login';
   const isRequestingReset = mode === 'forgot';
+  const isRecoveringWithQuestion = mode === 'question';
   const isResettingPassword = mode === 'reset';
-  const showsPassword = isRegistering || isLoggingIn || isResettingPassword;
+  const showsPassword =
+    isRegistering || isLoggingIn || isRecoveringWithQuestion || isResettingPassword;
+
+  async function beginRecoveryWithQuestion() {
+    setBusy(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await api<{ question: string }>('/auth/recovery-question', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+      setRecoveryPrompt(response.question);
+      setMode('question');
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <main className="auth-page">
@@ -349,7 +399,9 @@ function AuthScreen({
                 ? 'Sign in to your studio'
                 : isRequestingReset
                   ? 'Reset your password'
-                  : 'Choose a new password'}
+                  : isRecoveringWithQuestion
+                    ? 'Answer your recovery question'
+                    : 'Choose a new password'}
           </h2>
           <p className="auth-intro">
             {isRegistering
@@ -357,8 +409,10 @@ function AuthScreen({
               : isLoggingIn
                 ? 'Pick up where your creativity left off.'
                 : isRequestingReset
-                  ? 'Enter your email and we’ll send you a password reset link.'
-                  : 'Choose a new password for your AfriVoiceAI account.'}
+                  ? 'Enter your email to receive a reset link, or use your recovery question.'
+                  : isRecoveringWithQuestion
+                    ? 'Answer the recovery question you created when you signed up.'
+                    : 'Choose a new password for your AfriVoiceAI account.'}
           </p>
 
           <form className="auth-form" onSubmit={handleSubmit}>
@@ -384,10 +438,63 @@ function AuthScreen({
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
                   required
+                  readOnly={isRecoveringWithQuestion}
                   type="email"
                   value={email}
                 />
               </label>
+            )}
+            {isRegistering && (
+              <>
+                <label className="field" htmlFor="recovery-question">
+                  <span>Your recovery question</span>
+                  <input
+                    autoComplete="off"
+                    id="recovery-question"
+                    maxLength={160}
+                    minLength={8}
+                    onChange={(event) => setRecoveryQuestion(event.target.value)}
+                    placeholder="Create a question only you can answer"
+                    required
+                    value={recoveryQuestion}
+                  />
+                </label>
+                <label className="field" htmlFor="recovery-answer">
+                  <span>Your private answer</span>
+                  <input
+                    autoComplete="off"
+                    id="recovery-answer"
+                    maxLength={128}
+                    minLength={8}
+                    onChange={(event) => setRecoveryAnswer(event.target.value)}
+                    placeholder="Use a private, memorable phrase"
+                    required
+                    type="password"
+                    value={recoveryAnswer}
+                  />
+                  <small className="field-hint">
+                    Avoid facts others could find or guess. Your answer is stored as a hash.
+                  </small>
+                </label>
+              </>
+            )}
+            {isRecoveringWithQuestion && (
+              <>
+                <p className="recovery-question-prompt">{recoveryPrompt}</p>
+                <label className="field" htmlFor="recovery-answer">
+                  <span>Your private answer</span>
+                  <input
+                    autoComplete="off"
+                    id="recovery-answer"
+                    maxLength={128}
+                    minLength={8}
+                    onChange={(event) => setRecoveryAnswer(event.target.value)}
+                    required
+                    type="password"
+                    value={recoveryAnswer}
+                  />
+                </label>
+              </>
             )}
             {showsPassword && (
               <label className="field" htmlFor="password">
@@ -418,6 +525,31 @@ function AuthScreen({
                   value={confirmPassword}
                 />
               </label>
+            )}
+            {isRecoveringWithQuestion && (
+              <label className="field" htmlFor="confirm-password">
+                <span>Confirm new password</span>
+                <input
+                  autoComplete="new-password"
+                  id="confirm-password"
+                  minLength={8}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Enter your new password again"
+                  required
+                  type="password"
+                  value={confirmPassword}
+                />
+              </label>
+            )}
+            {isRequestingReset && (
+              <button
+                className="text-button forgot-password"
+                disabled={busy || !email}
+                onClick={beginRecoveryWithQuestion}
+                type="button"
+              >
+                Use my recovery question instead
+              </button>
             )}
             {isLoggingIn && (
               <button
@@ -454,6 +586,8 @@ function AuthScreen({
                       ? 'Sign in'
                       : isRequestingReset
                         ? 'Send reset link'
+                        : isRecoveringWithQuestion
+                          ? 'Reset password'
                         : 'Update password'}
               </span>
               {!busy && <ArrowRight size={17} />}
@@ -480,13 +614,13 @@ function AuthScreen({
               <button
                 className="text-button"
                 onClick={() => {
-                  setMode('login');
+                  setMode(isRecoveringWithQuestion ? 'forgot' : 'login');
                   setError('');
                   setSuccess('');
                 }}
                 type="button"
               >
-                Back to sign in
+                {isRecoveringWithQuestion ? 'Use email reset instead' : 'Back to sign in'}
               </button>
             )}
           </p>
@@ -511,6 +645,14 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   const [usage, setUsage] = useState<Usage>({ used: 0, limit: 30 });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [hasRecoveryQuestion, setHasRecoveryQuestion] = useState(user.has_recovery_question);
+  const [showRecoverySetup, setShowRecoverySetup] = useState(false);
+  const [recoveryQuestion, setRecoveryQuestion] = useState('');
+  const [recoveryAnswer, setRecoveryAnswer] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [recoveryError, setRecoveryError] = useState('');
+  const [recoverySuccess, setRecoverySuccess] = useState('');
+  const [savingRecovery, setSavingRecovery] = useState(false);
 
   async function refreshWorkspace() {
     const [recentGenerations, monthlyUsage] = await Promise.all([
@@ -554,6 +696,34 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
           message: `${feature} generation is still in progress. Please check back later.`,
         });
         return;
+      }
+
+      async function handleRecoverySetup(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        setSavingRecovery(true);
+        setRecoveryError('');
+        setRecoverySuccess('');
+
+        try {
+          await api('/auth/recovery-question', {
+            method: 'PUT',
+            body: JSON.stringify({
+              current_password: currentPassword,
+              question: recoveryQuestion,
+              answer: recoveryAnswer,
+            }),
+          });
+          setHasRecoveryQuestion(true);
+          setShowRecoverySetup(false);
+          setRecoveryQuestion('');
+          setRecoveryAnswer('');
+          setCurrentPassword('');
+          setRecoverySuccess('Your recovery question is saved.');
+        } catch (requestError) {
+          setRecoveryError(errorMessage(requestError));
+        } finally {
+          setSavingRecovery(false);
+        }
       }
 
       const response = await api<{ output: GenerationOutput }>('/generations', {
@@ -697,6 +867,97 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
               <span>TO CREATE</span>
             </div>
           </section>
+
+          {(!hasRecoveryQuestion || showRecoverySetup) && (
+            <section className="recovery-setup card" aria-labelledby="recovery-setup-title">
+              <div className="recovery-setup-heading">
+                <div>
+                  <span className="eyebrow">ACCOUNT RECOVERY</span>
+                  <h2 id="recovery-setup-title">Add a recovery question</h2>
+                  <p>
+                    Existing accounts can keep using email reset until this is set up. Choose an
+                    answer others cannot easily guess.
+                  </p>
+                </div>
+                {!showRecoverySetup && (
+                  <button
+                    className="button button-secondary"
+                    onClick={() => {
+                      setShowRecoverySetup(true);
+                      setRecoveryError('');
+                    }}
+                    type="button"
+                  >
+                    Set up recovery
+                  </button>
+                )}
+              </div>
+              {showRecoverySetup && (
+                <form className="recovery-setup-form" onSubmit={handleRecoverySetup}>
+                  <label className="field" htmlFor="account-recovery-question">
+                    <span>Your recovery question</span>
+                    <input
+                      autoComplete="off"
+                      id="account-recovery-question"
+                      maxLength={160}
+                      minLength={8}
+                      onChange={(event) => setRecoveryQuestion(event.target.value)}
+                      placeholder="Create a question only you can answer"
+                      required
+                      value={recoveryQuestion}
+                    />
+                  </label>
+                  <label className="field" htmlFor="account-recovery-answer">
+                    <span>Your private answer</span>
+                    <input
+                      autoComplete="off"
+                      id="account-recovery-answer"
+                      maxLength={128}
+                      minLength={8}
+                      onChange={(event) => setRecoveryAnswer(event.target.value)}
+                      placeholder="Use a private, memorable phrase"
+                      required
+                      type="password"
+                      value={recoveryAnswer}
+                    />
+                  </label>
+                  <label className="field" htmlFor="account-current-password">
+                    <span>Current password</span>
+                    <input
+                      autoComplete="current-password"
+                      id="account-current-password"
+                      onChange={(event) => setCurrentPassword(event.target.value)}
+                      required
+                      type="password"
+                      value={currentPassword}
+                    />
+                  </label>
+                  {recoveryError && (
+                    <p className="form-error" role="alert">{recoveryError}</p>
+                  )}
+                  <div className="recovery-setup-actions">
+                    <button
+                      className="button button-secondary"
+                      onClick={() => setShowRecoverySetup(false)}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="button button-primary"
+                      disabled={savingRecovery}
+                      type="submit"
+                    >
+                      {savingRecovery ? 'Saving…' : 'Save recovery question'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </section>
+          )}
+          {recoverySuccess && (
+            <p className="form-success recovery-success" role="status">{recoverySuccess}</p>
+          )}
 
           <div className="studio-grid">
             <section className="card composer-card" aria-labelledby="composer-title">
