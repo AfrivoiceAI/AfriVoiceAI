@@ -14,6 +14,7 @@ from app.models.schemas import (
     PasswordResetRequestIn,
     RecoveryQuestionLookupIn,
     RecoveryQuestionResetIn,
+    RecoveryQuestionSetupIn,
     RegisterIn,
 )
 
@@ -112,6 +113,28 @@ class PasswordResetTests(unittest.TestCase):
 
         self.assertEqual(result, {"question": "What was my first creative project?"})
 
+    def test_existing_user_can_enroll_after_password_check(self):
+        user = {
+            "_id": ObjectId(),
+            "email": "creator@example.com",
+            "password_hash": auth.hash_password("account-password"),
+        }
+        with patch.object(auth, "db", SimpleNamespace(users=FakeUsers(user))):
+            result = auth.set_recovery_question(
+                RecoveryQuestionSetupIn(
+                    current_password="account-password",
+                    question="What was my first creative project?",
+                    answer="  Private   recovery phrase ",
+                ),
+                {"id": str(user["_id"])},
+            )
+
+        self.assertTrue(result["has_recovery_question"])
+        self.assertEqual(user["recovery_question"], "What was my first creative project?")
+        self.assertTrue(
+            verify_password("private recovery phrase", user["recovery_answer_hash"])
+        )
+
     def test_question_reset_accepts_normalized_answer_and_updates_password(self):
         user = {
             "_id": ObjectId(),
@@ -179,6 +202,27 @@ class PasswordResetTests(unittest.TestCase):
                     )
                 )
             self.assertEqual(error.exception.status_code, 429)
+
+    def test_question_reset_handles_mongo_utc_lock_timestamp(self):
+        user = {
+            "_id": ObjectId(),
+            "email": "creator@example.com",
+            "password_hash": auth.hash_password("old-password"),
+            "recovery_answer_hash": auth.hash_password("private recovery phrase"),
+            "recovery_locked_until": datetime.now(timezone.utc).replace(tzinfo=None)
+            + timedelta(minutes=10),
+        }
+        with patch.object(auth, "db", SimpleNamespace(users=FakeUsers(user))):
+            with self.assertRaises(HTTPException) as error:
+                auth.reset_password_with_question(
+                    RecoveryQuestionResetIn(
+                        email="creator@example.com",
+                        answer="private recovery phrase",
+                        password="new-password",
+                    )
+                )
+
+        self.assertEqual(error.exception.status_code, 429)
 
     def test_forgot_password_sends_token_without_storing_it_in_plaintext(self):
         user = {"_id": ObjectId(), "email": "creator@example.com"}

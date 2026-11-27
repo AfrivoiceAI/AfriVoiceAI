@@ -11,7 +11,7 @@ AfriVoiceAI is an early-stage creative workspace for African creators. It combin
 | Web client | React, TypeScript, Vite; registration/sign-in, creator workspace, generation form, recent history and monthly usage display |
 | API | FastAPI; health check, authentication, generations, usage, feedback and consent endpoints |
 | Persistence | MongoDB collections for users, generations and feedback; unique email and history indexes |
-| Authentication | Email/password, Argon2 password hashing, JWT bearer tokens and email-based password reset; the web client stores the token in browser `localStorage` |
+| Authentication | Email/password, Argon2 password hashing, JWT bearer tokens, and user-defined recovery questions with hashed answers; email reset remains available for accounts not yet enrolled |
 | Usage limit | Monthly per-user generation counter, default 30 |
 | Text | Demo by default; optional Ollama local adapter; direct Google Gemini and optional Vercel AI Gateway adapters |
 | Speech | Frontend reports that voice generation is in progress; optional Kokoro adapter is not surfaced in the UI yet |
@@ -118,9 +118,9 @@ The backend reads environment variables using `backend/app/core/config.py`. `.en
 | `JWT_ALGORITHM` | JWT signing algorithm | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | Token lifetime | `1440` |
 | `FRONTEND_URL` | Frontend base URL used in password reset links | `http://localhost:5173` locally |
-| `SMTP_HOST`, `SMTP_PORT` | SMTP server for password reset email | Host required; port defaults to `587` with STARTTLS |
+| `SMTP_HOST`, `SMTP_PORT` | SMTP server for legacy password reset email | Host required; port defaults to `587` with STARTTLS |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | Optional SMTP login | Set both or leave both empty |
-| `SMTP_FROM_EMAIL` | Sender address for password reset email | Required to enable password reset |
+| `SMTP_FROM_EMAIL` | Sender address for email reset fallback | Required to enable email reset |
 | `CORS_ORIGINS` | Comma-separated exact browser origins | `http://localhost:5173` locally |
 | `AI_MODE` | Text mode: `demo`, `local`, `gateway` or `gemini` | `demo` locally; Render blueprint uses `gemini` |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Server-side Google AI Studio credential | Required for Gemini mode |
@@ -145,9 +145,12 @@ Except for health and authentication, endpoints require `Authorization: Bearer <
 | --- | --- | --- |
 | `GET` | `/health` | API and MongoDB connectivity |
 | `GET` | `/` | API name and docs link |
-| `POST` | `/api/v1/auth/register` | Create account and return a JWT |
+| `POST` | `/api/v1/auth/register` | Create account with a recovery question and return a JWT |
 | `POST` | `/api/v1/auth/login` | Authenticate and return a JWT |
-| `POST` | `/api/v1/auth/forgot-password` | Email a one-hour, single-use password reset link |
+| `PUT` | `/api/v1/auth/recovery-question` | Set or update the signed-in user's recovery question |
+| `POST` | `/api/v1/auth/recovery-question` | Retrieve the question for password recovery |
+| `POST` | `/api/v1/auth/reset-password-question` | Reset a password after answering its recovery question |
+| `POST` | `/api/v1/auth/forgot-password` | Email a one-hour, single-use reset link for accounts without a recovery question |
 | `POST` | `/api/v1/auth/reset-password` | Set a new password using a valid reset token |
 | `POST` | `/api/v1/generations` | Generate `text`, `speech` or `image`; persist the result |
 | `GET` | `/api/v1/generations` | Return the user's latest 50 generations |
@@ -179,7 +182,9 @@ Build command: pip install -r requirements.txt
 Start command: uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-Configure `MONGODB_URL`, `JWT_SECRET`, `CORS_ORIGINS` and `GOOGLE_GENERATIVE_AI_API_KEY` in Render's environment settings. To enable password reset, also set `SMTP_HOST`, `SMTP_FROM_EMAIL`, and (when required by the mail provider) both `SMTP_USERNAME` and `SMTP_PASSWORD`; the blueprint sets the production frontend URL and SMTP port. The Render blueprint sets `AI_MODE=gemini` and `GEMINI_MODEL=gemini-3.5-flash-lite`. Keep provider credentials on the server.
+Configure `MONGODB_URL`, `JWT_SECRET`, `CORS_ORIGINS` and `GOOGLE_GENERATIVE_AI_API_KEY` in Render's environment settings. Email reset is a fallback for accounts that have not enrolled in question recovery; configure `SMTP_HOST`, `SMTP_FROM_EMAIL`, and (when required by the mail provider) both `SMTP_USERNAME` and `SMTP_PASSWORD`. Render Free services block outbound ports 25, 465 and 587, so use a provider-supported alternate port such as 2525 or a paid service plan for SMTP. The blueprint sets the production frontend URL and default SMTP port. The Render blueprint sets `AI_MODE=gemini` and `GEMINI_MODEL=gemini-3.5-flash-lite`. Keep provider credentials on the server.
+
+Recovery questions are not as strong as verified email or MFA. Encourage a private, non-guessable answer; answers are normalized and stored as password hashes, and repeated wrong answers trigger a temporary cooldown. Existing users can enroll from the workspace after signing in. New registrations must set a recovery question and answer.
 
 ### Frontend
 

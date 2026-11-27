@@ -6,7 +6,7 @@ import ssl
 from datetime import datetime,timedelta,timezone
 from email.message import EmailMessage
 from urllib.parse import urlencode
-from fastapi import APIRouter,HTTPException
+from fastapi import APIRouter,Depends,HTTPException
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 from app.db.mongo import db
@@ -93,7 +93,7 @@ def get_recovery_question(data:RecoveryQuestionLookupIn):
         {'email':data.email.lower()},
         {'recovery_question':1,'recovery_answer_hash':1},
     )
-    if not account or not account.get('recovery_answer_hash'):
+    if not account or not account.get('recovery_question') or not account.get('recovery_answer_hash'):
         raise HTTPException(404,'No recovery question is set for this account. Use email reset instead.')
     return {'question':account['recovery_question']}
 
@@ -105,6 +105,8 @@ def reset_password_with_question(data:RecoveryQuestionResetIn):
 
     now=datetime.now(timezone.utc)
     locked_until=account.get('recovery_locked_until')
+    if locked_until and locked_until.tzinfo is None:
+        locked_until=locked_until.replace(tzinfo=timezone.utc)
     if locked_until and locked_until>now:
         raise HTTPException(429,'Too many incorrect recovery attempts. Try again later.')
     if locked_until:

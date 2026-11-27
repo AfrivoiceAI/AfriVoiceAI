@@ -256,6 +256,33 @@ function AuthScreen({
     }
   }, [resetToken]);
 
+  async function beginRecoveryWithQuestion() {
+    const response = await api<{ question: string }>('/auth/recovery-question', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    setRecoveryPrompt(response.question);
+    setMode('question');
+  }
+
+  async function sendEmailResetLink() {
+    setBusy(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await api('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      });
+      setSuccess('If an account exists for this email, a password reset link will be sent.');
+    } catch (requestError) {
+      setError(errorMessage(requestError));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -264,11 +291,7 @@ function AuthScreen({
 
     try {
       if (mode === 'forgot') {
-        await api('/auth/forgot-password', {
-          method: 'POST',
-          body: JSON.stringify({ email }),
-        });
-        setSuccess('If an account exists for this email, a password reset link will be sent.');
+        await beginRecoveryWithQuestion();
         return;
       }
 
@@ -337,25 +360,6 @@ function AuthScreen({
   const showsPassword =
     isRegistering || isLoggingIn || isRecoveringWithQuestion || isResettingPassword;
 
-  async function beginRecoveryWithQuestion() {
-    setBusy(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await api<{ question: string }>('/auth/recovery-question', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-      });
-      setRecoveryPrompt(response.question);
-      setMode('question');
-    } catch (requestError) {
-      setError(errorMessage(requestError));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <main className="auth-page">
       <section className="auth-story" aria-label="About AfriVoiceAI">
@@ -409,7 +413,7 @@ function AuthScreen({
               : isLoggingIn
                 ? 'Pick up where your creativity left off.'
                 : isRequestingReset
-                  ? 'Enter your email to receive a reset link, or use your recovery question.'
+                  ? 'Enter your email to continue with your recovery question.'
                   : isRecoveringWithQuestion
                     ? 'Answer the recovery question you created when you signed up.'
                     : 'Choose a new password for your AfriVoiceAI account.'}
@@ -545,10 +549,10 @@ function AuthScreen({
               <button
                 className="text-button forgot-password"
                 disabled={busy || !email}
-                onClick={beginRecoveryWithQuestion}
+                onClick={sendEmailResetLink}
                 type="button"
               >
-                Use my recovery question instead
+                Send me an email reset link instead
               </button>
             )}
             {isLoggingIn && (
@@ -585,7 +589,7 @@ function AuthScreen({
                     : isLoggingIn
                       ? 'Sign in'
                       : isRequestingReset
-                        ? 'Send reset link'
+                        ? 'Continue with recovery question'
                         : isRecoveringWithQuestion
                           ? 'Reset password'
                         : 'Update password'}
@@ -698,34 +702,6 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
         return;
       }
 
-      async function handleRecoverySetup(event: FormEvent<HTMLFormElement>) {
-        event.preventDefault();
-        setSavingRecovery(true);
-        setRecoveryError('');
-        setRecoverySuccess('');
-
-        try {
-          await api('/auth/recovery-question', {
-            method: 'PUT',
-            body: JSON.stringify({
-              current_password: currentPassword,
-              question: recoveryQuestion,
-              answer: recoveryAnswer,
-            }),
-          });
-          setHasRecoveryQuestion(true);
-          setShowRecoverySetup(false);
-          setRecoveryQuestion('');
-          setRecoveryAnswer('');
-          setCurrentPassword('');
-          setRecoverySuccess('Your recovery question is saved.');
-        } catch (requestError) {
-          setRecoveryError(errorMessage(requestError));
-        } finally {
-          setSavingRecovery(false);
-        }
-      }
-
       const response = await api<{ output: GenerationOutput }>('/generations', {
         method: 'POST',
         body: JSON.stringify({ kind, prompt, language }),
@@ -736,6 +712,34 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
       setError(errorMessage(requestError));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleRecoverySetup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingRecovery(true);
+    setRecoveryError('');
+    setRecoverySuccess('');
+
+    try {
+      await api('/auth/recovery-question', {
+        method: 'PUT',
+        body: JSON.stringify({
+          current_password: currentPassword,
+          question: recoveryQuestion,
+          answer: recoveryAnswer,
+        }),
+      });
+      setHasRecoveryQuestion(true);
+      setShowRecoverySetup(false);
+      setRecoveryQuestion('');
+      setRecoveryAnswer('');
+      setCurrentPassword('');
+      setRecoverySuccess('Your recovery question is saved.');
+    } catch (requestError) {
+      setRecoveryError(errorMessage(requestError));
+    } finally {
+      setSavingRecovery(false);
     }
   }
 
