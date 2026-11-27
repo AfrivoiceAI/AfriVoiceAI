@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     jwt_secret: str = "development-only-change-this"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
+    frontend_url: str = "http://localhost:5173"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
     cors_origins: str = "http://localhost:5173"
     ai_mode: Literal["demo", "local", "gateway", "gemini"] = "demo"
     ai_gateway_api_key: str = ""

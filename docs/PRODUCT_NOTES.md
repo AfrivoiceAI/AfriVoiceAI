@@ -6,6 +6,6 @@ Speech (Kokoro), transcription (Whisper) and image generation (FLUX) are optiona
 
 The brand palette is green, gold and white. Detailed requirements, personas, acceptance criteria, privacy expectations and roadmap are in [PRD.md](PRD.md).
 
-Not implemented: video, payments, admin/moderation, email verification, password reset, account deletion, production media storage, background jobs, consent withdrawal, model fine-tuning, robust rate limiting and comprehensive automated tests.
+Not implemented: video, payments, admin/moderation, email verification, account deletion, production media storage, background jobs, consent withdrawal, model fine-tuning, robust rate limiting and comprehensive automated tests.
 
 Before public launch: remove any temporary broad database network allowlist, implement consent and deletion workflows, move media to private object storage, validate model-provider costs and retention, run native-speaker evaluations, and add monitoring and security testing.

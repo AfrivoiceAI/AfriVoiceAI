@@ -20,7 +20,7 @@ type User = {
 };
 
 type CreationKind = 'text' | 'speech' | 'image';
-type AuthMode = 'register' | 'login';
+type AuthMode = 'register' | 'login' | 'forgot' | 'reset';
 
 type GenerationOutput = {
   status?: string;
@@ -234,23 +234,57 @@ function AuthScreen({
 }: {
   onAuthenticated: (user: User) => void;
 }) {
-  const [mode, setMode] = useState<AuthMode>('register');
+  const [resetToken] = useState(() => new URLSearchParams(window.location.search).get('reset_token') || '');
+  const [mode, setMode] = useState<AuthMode>(resetToken ? 'reset' : 'register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (resetToken) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+  }, [resetToken]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError('');
+    setSuccess('');
 
     try {
-      const body =
-        mode === 'register'
-          ? { email, password, display_name: name }
-          : { email, password };
+      if (mode === 'forgot') {
+        await api('/auth/forgot-password', {
+          method: 'POST',
+          body: JSON.stringify({ email }),
+        });
+        setSuccess('If an account exists for this email, a password reset link will be sent.');
+        return;
+      }
+
+      if (mode === 'reset') {
+        if (password !== confirmPassword) {
+          setError('Passwords do not match.');
+          return;
+        }
+        await api('/auth/reset-password', {
+          method: 'POST',
+          body: JSON.stringify({ token: resetToken, password }),
+        });
+        setMode('login');
+        setPassword('');
+        setConfirmPassword('');
+        setSuccess('Your password has been reset. Sign in with your new password.');
+        return;
+      }
+
+      const body = mode === 'register'
+        ? { email, password, display_name: name }
+        : { email, password };
       const response = await api<AuthResponse>(`/auth/${mode}`, {
         method: 'POST',
         body: JSON.stringify(body),
@@ -267,6 +301,10 @@ function AuthScreen({
   }
 
   const isRegistering = mode === 'register';
+  const isLoggingIn = mode === 'login';
+  const isRequestingReset = mode === 'forgot';
+  const isResettingPassword = mode === 'reset';
+  const showsPassword = isRegistering || isLoggingIn || isResettingPassword;
 
   return (
     <main className="auth-page">
@@ -301,12 +339,26 @@ function AuthScreen({
           <BrandMark compact />
         </div>
         <div className="auth-form-wrap">
-          <span className="eyebrow">{isRegistering ? 'YOUR STUDIO STARTS HERE' : 'WELCOME BACK'}</span>
-          <h2>{isRegistering ? 'Create your account' : 'Sign in to your studio'}</h2>
+          <span className="eyebrow">
+            {isRegistering ? 'YOUR STUDIO STARTS HERE' : isLoggingIn ? 'WELCOME BACK' : 'ACCOUNT RECOVERY'}
+          </span>
+          <h2>
+            {isRegistering
+              ? 'Create your account'
+              : isLoggingIn
+                ? 'Sign in to your studio'
+                : isRequestingReset
+                  ? 'Reset your password'
+                  : 'Choose a new password'}
+          </h2>
           <p className="auth-intro">
             {isRegistering
               ? 'A little space for all the ideas you’re ready to make real.'
-              : 'Pick up where your creativity left off.'}
+              : isLoggingIn
+                ? 'Pick up where your creativity left off.'
+                : isRequestingReset
+                  ? 'Enter your email and we’ll send you a password reset link.'
+                  : 'Choose a new password for your AfriVoiceAI account.'}
           </p>
 
           <form className="auth-form" onSubmit={handleSubmit}>
@@ -323,56 +375,120 @@ function AuthScreen({
                 />
               </label>
             )}
-            <label className="field" htmlFor="email">
-              <span>Email address</span>
-              <input
-                autoComplete="email"
-                id="email"
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                required
-                type="email"
-                value={email}
-              />
-            </label>
-            <label className="field" htmlFor="password">
-              <span>Password</span>
-              <input
-                autoComplete={isRegistering ? 'new-password' : 'current-password'}
-                id="password"
-                minLength={8}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 8 characters"
-                required
-                type="password"
-                value={password}
-              />
-            </label>
+            {!isResettingPassword && (
+              <label className="field" htmlFor="email">
+                <span>Email address</span>
+                <input
+                  autoComplete="email"
+                  id="email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  required
+                  type="email"
+                  value={email}
+                />
+              </label>
+            )}
+            {showsPassword && (
+              <label className="field" htmlFor="password">
+                <span>{isResettingPassword ? 'New password' : 'Password'}</span>
+                <input
+                  autoComplete={isLoggingIn ? 'current-password' : 'new-password'}
+                  id="password"
+                  minLength={8}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="At least 8 characters"
+                  required
+                  type="password"
+                  value={password}
+                />
+              </label>
+            )}
+            {isResettingPassword && (
+              <label className="field" htmlFor="confirm-password">
+                <span>Confirm new password</span>
+                <input
+                  autoComplete="new-password"
+                  id="confirm-password"
+                  minLength={8}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Enter your new password again"
+                  required
+                  type="password"
+                  value={confirmPassword}
+                />
+              </label>
+            )}
+            {isLoggingIn && (
+              <button
+                className="text-button forgot-password"
+                onClick={() => {
+                  setMode('forgot');
+                  setError('');
+                  setSuccess('');
+                }}
+                type="button"
+              >
+                Forgot password?
+              </button>
+            )}
 
             {error && (
               <p className="form-error" role="alert">
                 {error}
               </p>
             )}
+            {success && (
+              <p className="form-success" role="status">
+                {success}
+              </p>
+            )}
 
             <button className="button button-primary auth-submit" disabled={busy} type="submit">
-              <span>{busy ? 'Please wait…' : isRegistering ? 'Create my account' : 'Sign in'}</span>
+              <span>
+                {busy
+                  ? 'Please wait…'
+                  : isRegistering
+                    ? 'Create my account'
+                    : isLoggingIn
+                      ? 'Sign in'
+                      : isRequestingReset
+                        ? 'Send reset link'
+                        : 'Update password'}
+              </span>
               {!busy && <ArrowRight size={17} />}
             </button>
           </form>
 
           <p className="auth-switch">
-            {isRegistering ? 'Already have an account?' : 'New to AfriVoiceAI?'}{' '}
-            <button
-              className="text-button"
-              onClick={() => {
-                setMode(isRegistering ? 'login' : 'register');
-                setError('');
-              }}
-              type="button"
-            >
-              {isRegistering ? 'Sign in' : 'Create an account'}
-            </button>
+            {isRegistering || isLoggingIn ? (
+              <>
+                {isRegistering ? 'Already have an account?' : 'New to AfriVoiceAI?'}{' '}
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setMode(isRegistering ? 'login' : 'register');
+                    setError('');
+                    setSuccess('');
+                  }}
+                  type="button"
+                >
+                  {isRegistering ? 'Sign in' : 'Create an account'}
+                </button>
+              </>
+            ) : (
+              <button
+                className="text-button"
+                onClick={() => {
+                  setMode('login');
+                  setError('');
+                  setSuccess('');
+                }}
+                type="button"
+              >
+                Back to sign in
+              </button>
+            )}
           </p>
           <p className="auth-note">
             <Sparkles aria-hidden="true" size={14} />
@@ -454,6 +570,7 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
   }
 
   const firstName = user.display_name.trim().split(/\s+/)[0] || 'Creator';
+  const remainingAttempts = Math.max(usage.limit - usage.used, 0);
   const usagePercent =
     usage.limit > 0 ? Math.min((usage.used / usage.limit) * 100, 100) : 0;
   const resultImage =
@@ -556,6 +673,16 @@ function Studio({ user, onSignOut }: { user: User; onSignOut: () => void }) {
         </header>
 
         <main className="studio-content" id="studio">
+          <div
+            aria-label={`${remainingAttempts} of ${usage.limit} monthly attempts left. Resets monthly.`}
+            className="mobile-usage"
+          >
+            <Sparkles aria-hidden="true" size={17} />
+            <span>
+              <strong>{remainingAttempts} of {usage.limit} attempts left</strong>
+              <small>Your allowance resets monthly.</small>
+            </span>
+          </div>
           <section className="welcome-section">
             <div className="welcome-copy">
               <span className="eyebrow">YOUR CREATIVE WORKSPACE</span>

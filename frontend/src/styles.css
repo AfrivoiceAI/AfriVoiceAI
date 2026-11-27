@@ -359,6 +359,22 @@ a {
   gap: 17px;
 }
 
+.forgot-password {
+  align-self: flex-end;
+  margin-top: -8px;
+}
+
+.form-success {
+  margin: 0;
+  padding: 11px 13px;
+  border: 1px solid #cfe5d6;
+  border-radius: 8px;
+  background: #f0faf3;
+  color: var(--green-800);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -614,6 +630,10 @@ a {
   margin: 9px 0 0;
   color: #a9beb0;
   font-size: 9px;
+}
+
+.mobile-usage {
+  display: none;
 }
 
 .profile-row {
@@ -1466,6 +1486,38 @@ a {
 
   .topbar-status {
     display: none;
+  }
+
+  .mobile-usage {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    margin-bottom: 20px;
+    padding: 12px 14px;
+    border: 1px solid #dce8df;
+    border-radius: 11px;
+    background: var(--white);
+    color: var(--green-800);
+  }
+
+  .mobile-usage > svg {
+    flex: 0 0 auto;
+    color: var(--gold-600);
+  }
+
+  .mobile-usage > span {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .mobile-usage strong {
+    font-size: 12px;
+  }
+
+  .mobile-usage small {
+    color: var(--muted);
+    font-size: 10px;
   }
 
   .mobile-signout {

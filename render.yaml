@@ -16,6 +16,18 @@ services:
         value: afrivoice
       - key: JWT_SECRET
         generateValue: true
+      - key: FRONTEND_URL
+        value: https://afrivoice-ai-9mzt.onrender.com
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
       - key: CORS_ORIGINS
         value: "https://afrivoice-ai-9mzt.onrender.com,https://afri-voice-ai.vercel.app,http://localhost:5173,https://afri-voice-fv1ozwxl0-afri-voice-ai.vercel.app,https://afri-voice-acxo2w7xm-afri-voice-ai.vercel.app"
       - key: AI_MODE
